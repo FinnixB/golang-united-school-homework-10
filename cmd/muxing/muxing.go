@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -10,16 +11,55 @@ import (
 	"github.com/gorilla/mux"
 )
 
-/**
-Please note Start functions is a placeholder for you to start your own solution.
-Feel free to drop gorilla.mux if you want and use any other solution available.
+func helloName(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	param := vars["PARAM"]
+	fmt.Fprintf(w, "Hello, %s!", param)
+}
 
-main function reads host/port from env just for an example, flavor it following your taste
-*/
+func badRequest(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+}
 
-// Start /** Starts the web server listener on given host and port.
+func dataProcess(w http.ResponseWriter, r *http.Request) {
+	b, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	_, err = w.Write([]byte(fmt.Sprintf("I got message:\n%v", string(b))))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func headersSum(w http.ResponseWriter, r *http.Request) {
+	h := r.Header
+
+	a, err := strconv.Atoi(h.Get("a"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	b, err := strconv.Atoi(h.Get("b"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	w.Header().Add("a+b", strconv.Itoa(a+b))
+}
+
+func defaultsHttp(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+}
+
 func Start(host string, port int) {
 	router := mux.NewRouter()
+
+	router.HandleFunc("/name/{PARAM}", helloName).Methods(http.MethodGet)
+	router.HandleFunc("/bad", badRequest).Methods(http.MethodGet)
+	router.HandleFunc("/data", dataProcess).Methods(http.MethodPost)
+	router.HandleFunc("/headers", headersSum).Methods(http.MethodPost)
+	router.PathPrefix("/").HandlerFunc(defaultsHttp)
 
 	log.Println(fmt.Printf("Starting API server on %s:%d\n", host, port))
 	if err := http.ListenAndServe(fmt.Sprintf("%s:%d", host, port), router); err != nil {
